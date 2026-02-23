@@ -3,7 +3,6 @@ FROM alpine:3.20
 # Install tools at build time (so runtime can be read-only)
 RUN apk add --no-cache \
     iptables \
-    iptables-legacy \
     curl \
     busybox-extras \
     su-exec \
