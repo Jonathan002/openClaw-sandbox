@@ -1,0 +1,70 @@
+version: "3.9"
+
+services:
+  squid:
+    image: ubuntu/squid
+    container_name: squid-proxy
+
+    # Mount whitelist config read-only
+    volumes:
+      - ./squid.conf:/etc/squid/squid.conf:ro
+
+    # Squid connects to both networks:
+    # 1) internal network (to receive traffic from OpenClaw)
+    # 2) internet network (to reach Slack)
+    networks:
+      - openclaw-net
+      - internet-net
+
+    restart: unless-stopped
+
+
+  openclaw:
+    image: alpine
+    container_name: openclaw-test
+
+    # Install required tools, then run firewall script
+    command: sh /firewall.sh
+
+    volumes:
+      - ./firewall.sh:/firewall.sh:ro
+      - ./security-test.sh:/security-test.sh:ro
+
+    # Force proxy usage
+    environment:
+      - HTTP_PROXY=http://squid:3128
+      - HTTPS_PROXY=http://squid:3128
+
+    # Connect ONLY to internal network (no direct internet route)
+    networks:
+      - openclaw-net
+
+    # Drop all capabilities, add only NET_ADMIN (needed for iptables)
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+
+    # Prevent privilege escalation
+    security_opt:
+      - no-new-privileges:true
+
+    # Make filesystem read-only
+    read_only: true
+
+    # Provide writable tmp directory in memory
+    tmpfs:
+      - /tmp
+
+    # Run as non-root user
+    user: "1000:1000"
+
+    restart: unless-stopped
+
+
+networks:
+  openclaw-net:
+    internal: true  # No external routing
+
+  internet-net:
+    # Default NAT-enabled network (only Squid connected)
