@@ -46,6 +46,7 @@ services:
     # Provide writable tmp directory in memory
     tmpfs:
       - /tmp
+      - /run
 
     healthcheck:
       test: ["CMD-SHELL", "iptables -S >/dev/null 2>&1 && echo ok"]
