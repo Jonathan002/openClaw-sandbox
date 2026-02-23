@@ -15,20 +15,13 @@ services:
     networks:
       - openclaw-net
       - internet-net
-
     restart: unless-stopped
 
-
   openclaw:
-    image: alpine
+    build:
+      context: .
+      dockerfile: ./openclaw/Dockerfile
     container_name: openclaw-test
-
-    # Install required tools, then run firewall script
-    command: sh /firewall.sh
-
-    volumes:
-      - ./firewall.sh:/firewall.sh:ro
-      - ./security-test.sh:/security-test.sh:ro
 
     # Force proxy usage
     environment:
@@ -56,15 +49,10 @@ services:
     tmpfs:
       - /tmp
 
-    # Run as non-root user
-    user: "1000:1000"
-
     restart: unless-stopped
-
 
 networks:
   openclaw-net:
     internal: true  # No external routing
 
-  internet-net:
-    # Default NAT-enabled network (only Squid connected)
+  internet-net: {} # Default NAT-enabled network (only Squid connected)
