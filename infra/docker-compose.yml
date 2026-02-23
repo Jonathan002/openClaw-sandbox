@@ -18,7 +18,7 @@ services:
   openclaw:
     build:
       context: ./openclaw
-      dockerfile: ./openclaw/Dockerfile
+      dockerfile: Dockerfile
     container_name: openclaw-test
 
     # Force proxy usage
