@@ -1,0 +1,57 @@
+name: Sandbox Security CI
+
+on:
+  push:
+    paths:
+      - docker-compose.yml
+      - squid.conf
+      - firewall.sh
+      - security-test.sh
+  pull_request:
+
+jobs:
+  sandbox-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Docker Compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose
+
+      - name: Start Sandbox
+        run: docker compose up -d --build
+
+      - name: Wait for containers
+        run: sleep 5
+
+      - name: Verify no internet route
+        run: |
+          docker exec openclaw-test ip route | \
+          grep default && exit 1 || echo "No default route: OK"
+
+      - name: Verify iptables default DROP
+        run: |
+          docker exec openclaw-test iptables -L OUTPUT | \
+          grep DROP || exit 1
+
+      - name: Verify direct internet blocked
+        run: |
+          docker exec openclaw-test sh -c \
+          "curl -I https://google.com --max-time 5" && exit 1 || echo "Blocked OK"
+
+      - name: Verify Slack allowed via proxy
+        run: |
+          docker exec openclaw-test sh -c \
+          "curl -I https://slack.com --max-time 5" || exit 1
+
+      - name: Verify raw TCP blocked
+        run: |
+          docker exec openclaw-test sh -c \
+          "nc -zv google.com 443" && exit 1 || echo "Raw TCP blocked OK"
+
+      - name: Shutdown
+        run: docker compose down
