@@ -5,8 +5,8 @@ RUN apk add --no-cache \
     iptables \
     curl \
     busybox-extras \
-    su-exec \
-    ca-certificates
+    ca-certificates \
+    util-linux
 
 # Create non-root user/group (1000:1000)
 RUN addgroup -g 1000 -S app && adduser -u 1000 -S app -G app
