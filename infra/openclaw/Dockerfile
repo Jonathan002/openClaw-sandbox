@@ -5,8 +5,7 @@ RUN apk add --no-cache \
     iptables \
     curl \
     busybox-extras \
-    ca-certificates \
-    util-linux
+    ca-certificates
 
 # Create non-root user/group (1000:1000)
 RUN addgroup -g 1000 -S app && adduser -u 1000 -S app -G app
@@ -16,7 +15,6 @@ COPY entrypoint.sh /entrypoint.sh
 COPY firewall.sh /firewall.sh
 COPY security-test.sh /security-test.sh
 
-RUN chmod +x /entrypoint.sh /firewall.sh /security-test.sh
+RUN chmod +x /firewall.sh /security-test.sh
 
-ENTRYPOINT ["/entrypoint.sh"]
 CMD ["sleep", "infinity"]

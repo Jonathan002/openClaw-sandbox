@@ -15,13 +15,17 @@ services:
       - internet-net
     restart: unless-stopped
 
-  openclaw:
+  openclaw-netns:
     build:
       context: ./openclaw
       dockerfile: Dockerfile
-    container_name: openclaw-test
+    container_name: openclaw-netns
 
-    # Force proxy usage
+    # This container "owns" the shared network namespace.
+    # It stays alive and doesn't run OpenClaw — it just holds netns.
+    command: ["sleep", "infinity"]
+
+    # Proxy env is here mainly for consistency / visibility.
     environment:
       - HTTP_PROXY=http://squid:3128
       - HTTPS_PROXY=http://squid:3128
@@ -30,30 +34,93 @@ services:
     networks:
       - openclaw-net
 
-    # Drop all capabilities, add only NET_ADMIN (needed for iptables)
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_ADMIN
+    # Harden filesystem: read-only root, but allow ephemeral runtime dirs.
+    # /run is needed for iptables lock file (/run/xtables.lock)
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
 
     # Prevent privilege escalation
     security_opt:
       - no-new-privileges:true
 
-    # Make filesystem read-only
-    read_only: true
+    # Capabilities: we drop everything, then add ONLY NET_ADMIN.
+    # Why add NET_ADMIN here?
+    # - So CI can inspect iptables rules in the shared netns after
+    #   the one-shot firewall container exits.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
 
-    # Provide writable tmp directory in memory
+    restart: unless-stopped
+
+  openclaw-firewall:
+    build:
+      context: ./openclaw
+      dockerfile: Dockerfile
+    container_name: openclaw-firewall
+
+    # Share the SAME network namespace as openclaw-netns
+    network_mode: "service:openclaw-netns"
+
+    # Must be root + NET_ADMIN to set iptables in that shared netns
+    user: "0:0"
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+
+    # Prevent privilege escalation + read-only FS (with tmpfs)
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
     tmpfs:
       - /tmp
       - /run
 
+    # One-shot: apply firewall rules, then exit.
+    # NOTE: /tmp here is NOT shared with other containers (only netns is shared),
+    # so the marker file is only for debugging/logs, not for healthchecks.
+    command: ["sh", "-c", "/firewall.sh && echo ok > /tmp/firewall_ready"]
+
+    restart: "no"
+
+  openclaw:
+    build:
+      context: ./openclaw
+      dockerfile: Dockerfile
+    container_name: openclaw-test
+
+    # Share the SAME network namespace (already firewalled)
+    network_mode: "service:openclaw-netns"
+
+    # Run as non-root without needing CAP_SETUID/CAP_SETGID tricks
+    user: "1000:1000"
+
+    # Prevent privilege escalation
+    security_opt:
+      - no-new-privileges:true
+
+    # Harden filesystem
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+
+    # Drop all capabilities (this container should NOT be able to touch iptables)
+    cap_drop:
+      - ALL
+
+    # Simple healthcheck: just proves the container is alive.
+    # (Firewall marker isn't shared across containers.)
     healthcheck:
-      test: ["CMD-SHELL", "iptables -S >/dev/null 2>&1 && echo ok"]
-      interval: 2s
+      test: ["CMD-SHELL", "true"]
+      interval: 5s
       timeout: 2s
-      retries: 20
-      
+      retries: 10
+
     restart: unless-stopped
 
 networks:

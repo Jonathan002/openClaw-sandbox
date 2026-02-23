@@ -28,22 +28,19 @@ jobs:
           docker ps -a
           docker logs --tail 200 openclaw-test || true
 
-      - name: Wait for openclaw to be healthy
+      - name: Wait for openclaw-test to be running
         run: |
           set -e
           for i in $(seq 1 30); do
-            status="$(docker inspect -f '{{.State.Health.Status}}' openclaw-test 2>/dev/null || echo starting)"
-            echo "openclaw health: $status"
-            if [ "$status" = "healthy" ]; then
+            state="$(docker inspect -f '{{.State.Status}}' openclaw-test 2>/dev/null || echo starting)"
+            echo "openclaw-test status: $state"
+            if [ "$state" = "running" ]; then
               exit 0
             fi
-            if [ "$status" = "unhealthy" ]; then
-              docker logs --tail 200 openclaw-test || true
-              exit 1
-            fi
+            docker logs --tail 120 openclaw-test || true
             sleep 2
           done
-          echo "Timed out waiting for openclaw-test to become healthy"
+          docker ps -a
           docker logs --tail 200 openclaw-test || true
           exit 1
 
@@ -52,10 +49,10 @@ jobs:
           docker exec openclaw-test ip route | \
           grep default && exit 1 || echo "No default route: OK"
 
-      - name: Verify iptables default DROP
+      - name: Verify iptables default DROP (in shared netns)
         run: |
-          docker exec --user 0 openclaw-test sh -c "iptables -S | grep '^-P OUTPUT DROP'"
-
+          docker exec --user 0 openclaw-firewall sh -c "iptables -S | grep '^-P OUTPUT DROP'"
+          
       - name: Run in-container security tests
         run: |
           docker exec openclaw-test sh /security-test.sh
