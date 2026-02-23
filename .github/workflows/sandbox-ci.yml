@@ -4,10 +4,12 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - docker-compose.yml
-      - squid.conf
+      - infra/docker-compose.yml
+      - infra/squid.conf
       - firewall.sh
       - security-test.sh
+      - policy/**
+      - .github/workflows/sandbox-ci.yml
   pull_request:
 
 jobs:
@@ -24,7 +26,7 @@ jobs:
           sudo apt-get install -y docker-compose
 
       - name: Start Sandbox
-        run: docker compose up -d --build
+        run: docker compose -f infra/docker-compose.yml up -d --build
 
       - name: Wait for containers
         run: sleep 5
@@ -36,8 +38,7 @@ jobs:
 
       - name: Verify iptables default DROP
         run: |
-          docker exec openclaw-test iptables -L OUTPUT | \
-          grep DROP || exit 1
+          docker exec --user 0 openclaw-test sh -c "iptables -S | grep '^-P OUTPUT DROP'"
 
       - name: Verify direct internet blocked
         run: |
@@ -54,5 +55,6 @@ jobs:
           docker exec openclaw-test sh -c \
           "nc -zv google.com 443" && exit 1 || echo "Raw TCP blocked OK"
 
-      - name: Shutdown
-        run: docker compose down
+      - name: 
+        if: always()
+        run: docker compose -f infra/docker-compose.yml down
