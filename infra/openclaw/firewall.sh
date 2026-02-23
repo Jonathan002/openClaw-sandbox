@@ -1,4 +1,10 @@
 #!/bin/sh
+
+# Prefer legacy iptables if present (helps on some CI kernels)
+if command -v iptables-legacy >/dev/null 2>&1; then
+  alias iptables=iptables-legacy
+fi
+
 set -eu
 
 # Flush rules

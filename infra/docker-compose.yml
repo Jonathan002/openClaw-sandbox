@@ -47,6 +47,12 @@ services:
     tmpfs:
       - /tmp
 
+    healthcheck:
+      test: ["CMD-SHELL", "iptables -S >/dev/null 2>&1 && echo ok"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+      
     restart: unless-stopped
 
 networks:

@@ -22,8 +22,30 @@ jobs:
       - name: Start Sandbox
         run: docker compose -f infra/docker-compose.yml up -d --build
 
-      - name: Wait for containers
-        run: sleep 5
+      - name: Show openclaw logs (debug)
+        if: always()
+        run: |
+          docker ps -a
+          docker logs --tail 200 openclaw-test || true
+
+      - name: Wait for openclaw to be healthy
+        run: |
+          set -e
+          for i in $(seq 1 30); do
+            status="$(docker inspect -f '{{.State.Health.Status}}' openclaw-test 2>/dev/null || echo starting)"
+            echo "openclaw health: $status"
+            if [ "$status" = "healthy" ]; then
+              exit 0
+            fi
+            if [ "$status" = "unhealthy" ]; then
+              docker logs --tail 200 openclaw-test || true
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "Timed out waiting for openclaw-test to become healthy"
+          docker logs --tail 200 openclaw-test || true
+          exit 1
 
       - name: Verify no internet route
         run: |
@@ -41,4 +63,3 @@ jobs:
       - name: Cleanup
         if: always()
         run: docker compose -f infra/docker-compose.yml down --volumes --remove-orphans
-        
