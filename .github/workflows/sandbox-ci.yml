@@ -51,8 +51,19 @@ jobs:
 
       - name: Verify iptables default DROP (in shared netns)
         run: |
-          docker exec --user 0 openclaw-firewall sh -c "iptables -S | grep '^-P OUTPUT DROP'"
-          
+          docker exec --user 0 openclaw-netns sh -c "iptables -S | grep '^-P OUTPUT DROP'"
+
+      - name: Show container status + logs (debug)
+        if: always()
+        run: |
+          docker ps -a
+          echo "---- openclaw-firewall logs ----"
+          docker logs --tail 200 openclaw-firewall || true
+          echo "---- openclaw-netns logs ----"
+          docker logs --tail 200 openclaw-netns || true
+          echo "---- openclaw-test logs ----"
+          docker logs --tail 200 openclaw-test || true
+
       - name: Run in-container security tests
         run: |
           docker exec openclaw-test sh /security-test.sh
