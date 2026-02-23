@@ -1,19 +1,43 @@
 services:
   squid:
-    image: ubuntu/squid
-    container_name: squid-proxy
+      image: ubuntu/squid
+      container_name: squid-proxy
 
-    # Mount whitelist config read-only
-    volumes:
-      - ./squid.conf:/etc/squid/squid.conf:ro
+      # Mount whitelist config read-only
+      volumes:
+        - ./squid.conf:/etc/squid/squid.conf:ro
 
-    # Squid connects to both networks:
-    # 1) internal network (to receive traffic from OpenClaw)
-    # 2) internet network (to reach Slack)
-    networks:
-      - openclaw-net
-      - internet-net
-    restart: unless-stopped
+      # Squid connects to both networks:
+      # 1) internal network (to receive traffic from OpenClaw)
+      # 2) internet network (to reach Slack)
+      networks:
+        - openclaw-net
+        - internet-net
+
+      # Prevent privilege escalation
+      security_opt:
+        - no-new-privileges:true
+
+      # Drop all Linux capabilities (Squid listens on 3128, so it doesn't need NET_BIND_SERVICE)
+      cap_drop:
+        - ALL
+
+      # Make filesystem read-only; provide only minimal writable runtime dirs
+      read_only: true
+      tmpfs:
+        - /tmp
+        - /run
+        - /var/log/squid
+        - /var/spool/squid
+
+      # Optional: simple healthcheck (local port)
+      healthcheck:
+        test: ["CMD-SHELL", "sh -c 'nc -z 127.0.0.1 3128'"]
+        interval: 5s
+        timeout: 2s
+        retries: 10
+
+      restart: unless-stopped
 
   openclaw-netns:
     build:
